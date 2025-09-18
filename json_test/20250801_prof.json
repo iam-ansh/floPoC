@@ -1,0 +1,18 @@
+{
+  "title": "Argo float vertical profile",
+  "institution": "FR GDAC",
+  "source": "Argo float",
+  "history": "2025-09-17T22:10:02Z creation",
+  "references": "http://www.argodatamgt.org/Documentation",
+  "user_manual_version": "3.1",
+  "Conventions": "Argo-3.1 CF-1.6",
+  "featureType": "trajectoryProfile",
+  "temperature_min": -1.8179999589920044,
+  "temperature_max": 31.9950008392334,
+  "pressure_min": -0.10000000149011612,
+  "pressure_max": 5698.89990234375,
+  "salinity_min": 0.024000000208616257,
+  "salinity_max": 37.28900146484375,
+  "time_start": "2025-08-01T00:02:17.000000000",
+  "time_end": "2025-08-01T21:55:30.000000000"
+}
