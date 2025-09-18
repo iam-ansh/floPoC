@@ -24,10 +24,12 @@ def process_profiles(ds):
     temp_names = ["TEMP", "temp", "TEMPERATURE", "temperature", "TEMP_ADJUSTED"]
     pres_names = ["PRES", "pres", "PRESSURE", "pressure", "PRES_ADJUSTED"]
     psal_names = ["PSAL", "psal", "SALINITY", "salinity", "PSAL_ADJUSTED"]
+    time_names = ["TIME", "time", "JULD", "juld", "TIME_ADJUSTED"]
 
     temp_var = find_variable(ds, temp_names)
     pres_var = find_variable(ds, pres_names)
     psal_var = find_variable(ds, psal_names)
+    time_var = find_variable(ds, time_names)
 
     if not temp_var or not pres_var:
         print("❌ Missing required variables")
@@ -36,11 +38,22 @@ def process_profiles(ds):
     temp = ds[temp_var].values
     pres = ds[pres_var].values
     psal = ds[psal_var].values if psal_var else None
+    time = ds[time_var].values if time_var else None
+
+    # Convert numeric times to datetime if possible
+    if time is not None:
+        try:
+            time = xr.decode_cf(ds[[time_var]])[time_var].values
+        except Exception:
+            pass  # fallback: keep raw values
 
     profiles = []
     if temp.ndim == 2:
         n_profiles, n_depths = temp.shape
         for prof_idx in range(n_profiles):
+            prof_time = (
+                str(time[prof_idx]) if time is not None and len(time) > prof_idx else None
+            )
             for depth_idx in range(n_depths):
                 t = temp[prof_idx, depth_idx]
                 p = pres[prof_idx, depth_idx] if pres.shape == temp.shape else pres[depth_idx]
@@ -49,11 +62,13 @@ def process_profiles(ds):
                     profiles.append({
                         "profile_id": prof_idx,
                         "depth_level": depth_idx,
+                        "time": prof_time,
                         "pressure": float(p),
                         "temperature": float(t),
                         "salinity": float(s) if s is not None and not np.isnan(s) else None
                     })
     elif temp.ndim == 1:
+        prof_time = str(time[0]) if time is not None else None
         for depth_idx in range(len(temp)):
             t = temp[depth_idx]
             p = pres[depth_idx]
@@ -62,6 +77,7 @@ def process_profiles(ds):
                 profiles.append({
                     "profile_id": 0,
                     "depth_level": depth_idx,
+                    "time": prof_time,
                     "pressure": float(p),
                     "temperature": float(t),
                     "salinity": float(s) if s is not None and not np.isnan(s) else None
@@ -97,6 +113,11 @@ def download_and_process(url):
         if var in df.columns:
             metadata[f"{var}_min"] = float(df[var].min())
             metadata[f"{var}_max"] = float(df[var].max())
+
+    # Add time range to metadata
+    if "time" in df.columns and not df["time"].isnull().all():
+        metadata["time_start"] = str(df["time"].dropna().min())
+        metadata["time_end"] = str(df["time"].dropna().max())
 
     Path("csvs").mkdir(exist_ok=True)
     Path("jsons").mkdir(exist_ok=True)
