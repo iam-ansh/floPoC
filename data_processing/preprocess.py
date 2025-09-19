@@ -32,7 +32,7 @@ def process_profiles(ds):
     time_var = find_variable(ds, time_names)
 
     if not temp_var or not pres_var:
-        print("❌ Missing required variables")
+        print(" Missing required variables")
         return pd.DataFrame()
 
     temp = ds[temp_var].values
@@ -45,7 +45,7 @@ def process_profiles(ds):
         try:
             time = xr.decode_cf(ds[[time_var]])[time_var].values
         except Exception:
-            pass  # fallback: keep raw values
+            pass  
 
     profiles = []
     if temp.ndim == 2:
@@ -87,12 +87,12 @@ def process_profiles(ds):
 
 
 def download_and_process(url):
-    print(f"\n📂 Streaming dataset from: {url}")
+    print(f"\n Streaming dataset from: {url}")
     try:
         response = requests.get(url, stream=True)
         response.raise_for_status()
     except Exception as e:
-        print(f"❌ Failed to fetch URL: {e}")
+        print(f" Failed to fetch URL: {e}")
         return
 
     nc_bytes = io.BytesIO(response.content)
@@ -100,12 +100,12 @@ def download_and_process(url):
     try:
         ds = xr.open_dataset(nc_bytes)
     except Exception as e:
-        print(f"❌ Failed to open dataset: {e}")
+        print(f" Failed to open dataset: {e}")
         return
 
     df = process_profiles(ds)
     if df.empty:
-        print("⚠️ No valid profile data found!")
+        print(" No valid profile data found!")
         return
 
     metadata = extract_metadata(ds)
@@ -130,7 +130,7 @@ def download_and_process(url):
     with open(out_json, "w") as f:
         json.dump(metadata, f, indent=2)
 
-    print(f"✅ Saved {out_csv} and {out_json}")
+    print(f" Saved {out_csv} and {out_json}")
 
 
 def get_nc_files(base_url):
@@ -138,7 +138,7 @@ def get_nc_files(base_url):
         resp = requests.get(base_url)
         resp.raise_for_status()
     except Exception as e:
-        print(f"❌ Failed to fetch base URL: {e}")
+        print(f" Failed to fetch base URL: {e}")
         return []
 
     soup = BeautifulSoup(resp.text, "html.parser")

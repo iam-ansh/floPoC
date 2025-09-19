@@ -11,7 +11,6 @@ from chromadb.config import Settings
 
 load_dotenv()
 
-
 CHUNK_SIZE_DAYS = 5      
 OVERLAP_DAYS = 2          
 TABLE_NAME = "argo_data_test"
@@ -46,8 +45,6 @@ if not df.empty:
                     },
                 )
             )
-
-        # move window by (CHUNK_SIZE - OVERLAP) days
         start_time += timedelta(days=(CHUNK_SIZE_DAYS - OVERLAP_DAYS))
 
 print(f"Created {len(documents)} overlapping time chunks")
