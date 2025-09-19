@@ -1,61 +1,78 @@
 import os
-import psycopg2
 import pandas as pd
-from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from sqlalchemy import create_engine
 from langchain.schema import Document
-from langchain_community.vectorstores import Chroma
+from langchain_chroma import Chroma
+from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from datetime import timedelta
 from dotenv import load_dotenv
-import chromadb
 from chromadb.config import Settings
+
 
 load_dotenv()
 
 
-conn = psycopg2.connect(
-    host=os.getenv("POSTGRES_HOST"),
-    port=int(os.getenv("POSTGRES_PORT")),
-    dbname=os.getenv("POSTGRES_DB"),
-    user=os.getenv("POSTGRES_USER"),
-    password=os.getenv("POSTGRES_PASSWORD")
+CHUNK_SIZE_DAYS = 5      
+OVERLAP_DAYS = 2          
+TABLE_NAME = "argo_data_test"
+EMBED_MODEL = "models/embedding-001"
+
+
+engine = create_engine(
+    f"postgresql+psycopg2://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
+    f"@{os.getenv('POSTGRES_HOST')}:{os.getenv('POSTGRES_PORT')}/{os.getenv('POSTGRES_DB')}"
 )
 
-df = pd.read_sql("SELECT * FROM argo_data_test", conn)
-conn.close()
+
+df = pd.read_sql(f"SELECT * FROM {TABLE_NAME} ORDER BY time_start ASC", engine)
+df["time_start"] = pd.to_datetime(df["time_start"])
 
 documents = []
-for _, row in df.iterrows():
-    # Convert metadata to dict and cast timestamps to string
-    metadata = {}
-    for k, v in row.to_dict().items():
-        if isinstance(v, (pd.Timestamp, pd.DatetimeTZDtype)):
-            metadata[k] = str(v)
-        else:
-            metadata[k] = v
-    
-    text = " | ".join([f"{col}: {metadata[col]}" for col in df.columns])
-    documents.append(Document(page_content=text, metadata=metadata))
+if not df.empty:
+    start_time = df["time_start"].iloc[0]
 
-embedding_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001")
+    while start_time <= df["time_start"].iloc[-1]:
+        end_time = start_time + timedelta(days=CHUNK_SIZE_DAYS)
+        chunk = df[(df["time_start"] >= start_time) & (df["time_start"] < end_time)]
 
-settings = Settings(
-    chroma_server_host=os.getenv('CHROMA_HOST'),
-    chroma_server_http_port=os.getenv('CHROMA_PORT',8000)
+        if not chunk.empty:
+            text = chunk.to_csv(index=False)
+            documents.append(
+                Document(
+                    page_content=text,
+                    metadata={
+                        "start": str(chunk["time_start"].iloc[0]),
+                        "end": str(chunk["time_start"].iloc[-1]),
+                    },
+                )
+            )
+
+        # move window by (CHUNK_SIZE - OVERLAP) days
+        start_time += timedelta(days=(CHUNK_SIZE_DAYS - OVERLAP_DAYS))
+
+print(f"Created {len(documents)} overlapping time chunks")
+
+
+chroma_settings = Settings(
+    chroma_server_host=os.getenv("CHROMA_HOST"),
+    chroma_server_http_port=int(os.getenv("CHROMA_PORT"))
 )
 
-client = chromadb.Client(settings=settings)
-collection = client.get_or_create_collection("argo_test_chunks")
-
-embeddings = [
-    embedding_model.embed_query(doc.page_content) for doc in documents
-]
-
-collection.add(
-    ids=[f"row_{i}" for i in range(len(documents))],
-    documents=[doc.page_content for doc in documents],
-    embeddings=embeddings,
-    metadatas=[doc.metadata for doc in documents]
+embeddings = GoogleGenerativeAIEmbeddings(
+    model="models/embedding-001",
+    google_api_key=os.getenv("GOOGLE_API_KEY")
 )
 
-print("Embeddings created!")
-collection = client.get_collection("argo_test_chunks")
+
+vectorstore = Chroma(
+    collection_name="argo_collection_test",
+    embedding_function=embeddings,
+    client_settings=chroma_settings,
+)
+
+
+vectorstore.add_documents(documents)
+print("Documents stored in remote Chroma DB!")
+collection = vectorstore._client.get_collection("argo_collection_test")
 print("Number of stored embeddings:", collection.count())
+
