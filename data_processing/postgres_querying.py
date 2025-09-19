@@ -24,7 +24,7 @@ cursor = conn.cursor()
 
 # Create table if not exists
 create_table = """
-CREATE TABLE IF NOT EXISTS argo_data (
+CREATE TABLE IF NOT EXISTS argo_data_test (
     id SERIAL PRIMARY KEY,
     title TEXT,
     institution TEXT,
@@ -53,7 +53,7 @@ for file in json_folder.glob("*.json"):
         data = json.load(f)
 
         insert_query = """
-        INSERT INTO argo_data (
+        INSERT INTO argo_data_test (
             title, institution, source, history, references_text,
             user_manual_version, conventions, featureType,
             temperature_min, temperature_max,
